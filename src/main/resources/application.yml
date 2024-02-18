@@ -1,0 +1,29 @@
+spring:
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      connect-timeout: 1000
+      password: 121773
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: 1000ms
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    druid:
+      url: jdbc:mysql://localhost:3306/comment-db?characterEncoding=utf-8
+      username: root
+      password: 121773
+      driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  type-aliases-package: org.example.entity
+
+server:
+  port: 8082
+
