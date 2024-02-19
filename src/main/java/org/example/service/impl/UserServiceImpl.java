@@ -1,13 +1,16 @@
 package org.example.service.impl;
 
 import cn.hutool.core.util.RandomUtil;
+import cn.hutool.extra.spring.SpringUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.example.dto.Result;
+import org.example.dto.UserDTO;
 import org.example.entity.User;
 import org.example.mapper.UserMapper;
 import org.example.service.IUserService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -15,6 +18,7 @@ import jakarta.servlet.http.HttpSession;
 
 import static org.example.utils.RegexUtils.isPhoneNotInvalid;
 import static org.example.utils.SystemConstants.*;
+import static org.example.utils.UserHolder.USER_KEY;
 
 
 @Slf4j
@@ -51,7 +55,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         } else {
             user = userMapper.selectOne(wrapper);
         }
-        session.setAttribute("userId", user); // 保存整个用户
+        session.setAttribute(USER_KEY,
+                new UserDTO(
+                        user.getId(), user.getNickName(), user.getIcon())); // 保存整个用户，但是会信息冗余，故只保存DTO
         return Result.ok();
     }
 

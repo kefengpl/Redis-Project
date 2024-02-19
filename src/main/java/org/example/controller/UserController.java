@@ -3,6 +3,7 @@ package org.example.controller;
 import org.example.dto.Result;
 import org.example.service.IUserInfoService;
 import org.example.service.IUserService;
+import org.example.utils.UserHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -43,5 +44,13 @@ public class UserController {
         String phone = map.get("phone");
         String verifyCode = map.get("code");
         return userService.login(phone, verifyCode, session);
+    }
+
+    /**
+     * 获取当前用户信息并返回
+     * */
+    @GetMapping("me")
+    public Result me() {
+        return Result.ok(UserHolder.getUser());
     }
 }
