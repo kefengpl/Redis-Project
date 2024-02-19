@@ -1,9 +1,6 @@
 package org.example.controller;
 
-import java.util.List;
-
 import org.example.dto.Result;
-import org.example.entity.Blog;
 import org.example.service.IBlogService;
 import org.example.utils.SystemConstants;
 import org.springframework.beans.factory.annotation.Autowired;

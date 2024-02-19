@@ -7,15 +7,13 @@ import org.example.utils.UserHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import jakarta.servlet.http.HttpSession;
-
 import java.util.Map;
 
 
 /**
  * @Author 3590
  * @Date 2024/2/18 23:06
- * @Description
+ * @Description 用户的登录模块
  */
 @RestController
 @RequestMapping("user")
@@ -30,8 +28,8 @@ public class UserController {
      * 需要做的是：验证收集号码，然后如果格式正确，就需要生成验证码，并返回验证码，且保存在本地的Session里面！
      */
     @PostMapping("code")
-    public Result sendCode(@RequestParam("phone") String phone, HttpSession session) {
-        return userService.sendCode(phone, session);
+    public Result sendCode(@RequestParam("phone") String phone) {
+        return userService.sendCode(phone);
     }
 
     /**
@@ -40,10 +38,10 @@ public class UserController {
      * 优化：为了传输 phone + code，我们有DTO类，这样可以有效避免使用十分容易出错的 map + 属性值
      * */
     @PostMapping("login")
-    public Result login(@RequestBody Map<String, String> map, HttpSession session) {
+    public Result login(@RequestBody Map<String, String> map) {
         String phone = map.get("phone");
         String verifyCode = map.get("code");
-        return userService.login(phone, verifyCode, session);
+        return userService.login(phone, verifyCode);
     }
 
     /**
@@ -52,5 +50,13 @@ public class UserController {
     @GetMapping("me")
     public Result me() {
         return Result.ok(UserHolder.getUser());
+    }
+
+    /**
+     * 登出需要做的：Request 无法发送 token 即可
+     * */
+    @PostMapping("logout")
+    public Result logout() {
+        return Result.ok(null);
     }
 }

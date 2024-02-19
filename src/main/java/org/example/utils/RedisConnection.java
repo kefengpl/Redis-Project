@@ -28,6 +28,7 @@ public class RedisConnection {
             session.connect();
             // 相当于配置了端口转发
             // 将请求转发到服务器并连接到数据库
+            // 之所以可能 6379 被绑定且占用，是因为 IDEA 自带的 Redis 连接工具。直接把它删去就好
             session.setPortForwardingL(6379, "127.0.0.1", 6379);
             session.setTimeout(1000000);
             System.out.println("The ssh connection is OK.");
