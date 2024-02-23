@@ -135,6 +135,8 @@ redis 有一个 setnx lock 1 : set the value of a key, only if the key does not 
 为什么不能用Java的JUC自带的锁？答：因为分布式场景会失效，多个结点往往代表多个进程。
 传统的锁都是为了解决单个JVM进程内的并发问题设计的，它们无法直接用于分布式场景中多个JVM进程之间的同步控制。
 
+**解决缓存击穿：
+
 **finally 的执行机制？**
 在Java中，当try块内有return语句时，finally块的执行逻辑如下：
 try块内的return语句首先计算其返回值，但是不会立即执行返回到方法调用者。
@@ -142,3 +144,5 @@ try块内的return语句首先计算其返回值，但是不会立即执行返�
 如果finally块中没有改变返回值或没有包含它自己的return语句，那么原来由try块中的return语句计算出的返回值将被返回。
 如果finally块中包含了return语句，那么finally块的返回值会覆盖try块的返回值，finally块的return语句的值会被返回。
 总结来说，虽然return语句会先被计算，但finally块会在方法返回给调用者之前执行。这意味着，无论try块的执行路径如何，finally块总是会执行，并且它的执行可以影响方法的最终返回结果，特别是当finally块中包含return语句时。这是一种确保资源被清理的强大机制，但也需要小心使用，以避免意外覆盖返回值
+
+
