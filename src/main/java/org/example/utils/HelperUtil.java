@@ -9,6 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -20,8 +22,10 @@ import java.util.Map;
  */
 @Slf4j
 public class HelperUtil {
-    private static final Gson gson = new GsonBuilder().setExclusionStrategies(new MyGsonStrategy()).create();
     private static final double CAPITAL_ENLARGE_FACTOR = 1.5;
+    private static final Gson gson = new GsonBuilder()
+            .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeAdapter())
+            .setExclusionStrategies(new MyGsonStrategy()).create();
 
     private static class MyGsonStrategy implements ExclusionStrategy{
         @Override
@@ -32,6 +36,31 @@ public class HelperUtil {
         public boolean shouldSkipClass(Class<?> clazz) {
             return false;
         }
+    }
+
+    /***
+     * @param expireTime 待检测的时间
+     * @param aliveTime 存活时间
+     * @param timeUnit 时间单位
+     * @return 与现在时间相比，判断是否逻辑过期
+     */
+    public static boolean isExpired(LocalDateTime expireTime, long aliveTime, ChronoUnit timeUnit) {
+        long betweenTime = timeUnit.between(expireTime, LocalDateTime.now());// 从过去到现在的时间，按照时间先后排布
+        return betweenTime > aliveTime;
+    }
+
+    /***
+     * 将 shop 封装，添加 expire 字段，值是当前时刻
+     * @param data 待包装的数据
+     * @return RedisShopData，包装后的类型；如果 data == null，就 return null
+     * @param <T> 数据的类型
+     */
+    public static <T> RedisWrapperData<T> dataWrapper(T data) {
+        if (data == null) return null;
+        RedisWrapperData<T> redisWrapperData = new RedisWrapperData<>();
+        redisWrapperData.setData(data);
+        redisWrapperData.setExpireTime(LocalDateTime.now());
+        return redisWrapperData;
     }
 
     public static <T> String beanToJson(T bean) {
@@ -88,7 +117,7 @@ public class HelperUtil {
      * 作用是通过反射，把每个字段名称及其String存入Map
      * @return bean 生成的键值对，key 是属性名称字符串，value 是属性值字符串；即使 object 是 null，也可以返回一个空map
      * */
-    public static <T> Map<String, String> beanToStringMap(String key, T object) {
+    public static <T> Map<String, String> beanToStringMap(T object) {
         if (object == null) return new HashMap<>();
         Class<?> clazz = object.getClass();
         Field[] fields = clazz.getDeclaredFields();
@@ -104,4 +133,5 @@ public class HelperUtil {
         }
         return map;
     }
+
 }

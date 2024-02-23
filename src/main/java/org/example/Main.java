@@ -10,8 +10,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * @Date 2024/1/29 0:22
  * @Description
  */
-@SpringBootApplication
 @MapperScan("org.example.mapper")
+@SpringBootApplication
 public class Main {
     public static void main(String[] args) {
         SpringApplication.run(Main.class, args);

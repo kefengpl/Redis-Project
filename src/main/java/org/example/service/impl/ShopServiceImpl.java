@@ -1,6 +1,5 @@
 package org.example.service.impl;
 
-import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -10,6 +9,8 @@ import org.example.mapper.ShopMapper;
 import org.example.service.IShopService;
 
 import org.example.utils.HelperUtil;
+import org.example.utils.RedisCacheUtil;
+import org.example.utils.RedisWrapperData;
 import org.example.utils.SetnxLock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -17,8 +18,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.example.utils.RedisConstants.*;
 import static org.example.utils.SystemConstants.*;
@@ -31,6 +30,8 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     StringRedisTemplate redisTemplate;
     @Autowired
     SetnxLock setnxLock;
+    @Autowired
+    RedisCacheUtil redisCacheUtil;
 
     /**
      * Redis 优化：它作为 MySQL 的 Cache。
@@ -38,68 +39,37 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
      * 使用简单的空键值对方法，解决缓存穿透问题
      * -----------------------------
      * 使用 redis 的 setnx 来构建一个分布式锁。对查询数据库的操作加锁
-     * */
+     * 使用逻辑过期的解决办法。注意：逻辑过期的情况下，使用空键值对解决缓存穿透也是可行的，当然，这会导致空键值对被反复查询。
+     * [空键值对也逻辑过期即可]
+     */
     @Override
     public Result queryShopById(Long id) {
         String cacheKey = CACHE_SHOP_KEY + id;
         String failMessage = "id = " + id + " 的商户不存在";
 
-        Result cacheHitResult = cacheQueryShopById(id, failMessage);
-        if (cacheHitResult != null) return cacheHitResult; // 缓存命中
+        Result cacheHitResult = redisCacheUtil.cacheQueryById(id, CACHE_SHOP_KEY, failMessage, shopMapper::selectById);
+        if (cacheHitResult != null) {
+            return cacheHitResult; // 缓存命中
+        }
 
         // 缓存不命中：则需要去数据库查询
-        // 对查询过程加锁
+        // 对查询过程加锁。注意：该代码块只会执行一次，就是最开始未命中的情况；当然，空键值对可能需要反复运行下面的代码。
         try {
-            setnxLock.tryLock();
+            setnxLock.tryLock(); // 注意：这里的等待机制可能是性能瓶颈
             // 其它线程获得锁后重复查询一次，如果缓存命中，就结束该函数
-            cacheHitResult = cacheQueryShopById(id, failMessage);
-            if (cacheHitResult != null) return cacheHitResult; // 缓存命中
+            cacheHitResult = redisCacheUtil.cacheQueryById(id, CACHE_SHOP_KEY, failMessage, shopMapper::selectById);
+            if (cacheHitResult != null) {
+                return cacheHitResult; // 缓存命中，这也会运行 finally 代码块
+            }
 
             // 将数据添加到数据库
-            Shop shop = shopMapper.selectById(id);
-            addShopToCache(shop, cacheKey);
+            RedisWrapperData<Shop> wrapperData = HelperUtil.dataWrapper(shopMapper.selectById(id));
+            redisCacheUtil.addWrapperDataToCache(wrapperData, cacheKey);
             // 注意：执行顺序：①计算 return的值；②执行 finally 代码块 ③ 返回值
-            return shop == null ? Result.fail(failMessage) : Result.ok(shop);
+            return wrapperData == null ? Result.fail(failMessage) : Result.ok(wrapperData.getData());
         } finally {
             setnxLock.releaseLock();
         }
-    }
-
-    /***
-     * @param id 查询店铺的 id
-     * @param failMessage 查询到空 map 返回失败信息
-     * @return Result，如果缓存命中，Result就是返回查询到的信息；未命中，则返回 null
-     */
-    private Result cacheQueryShopById(Long id, String failMessage) {
-        String cacheKey = CACHE_SHOP_KEY + id;
-        Map<Object, Object> entries = redisTemplate.opsForHash().entries(cacheKey);
-        // 缓存命中，但也有可能是空值(_placeholder == true)。如果是空，则需要返回 “店铺不存在”。
-        if (!entries.isEmpty()) {
-            if (entries.containsKey(NULL_PLACEHOLDER)) { // 空 map 的情况
-                return Result.fail(failMessage);
-            } else {
-                return Result.ok(BeanUtil.fillBeanWithMap(entries, new Shop(), false));
-            }
-        }
-        return null;
-    }
-
-    /***
-     * @param shop 可能是空
-     * 将数据库查询的结果添加到 cache 中
-     */
-    private void addShopToCache(Shop shop, String cacheKey) {
-        if (shop == null) {
-            // 一种缓存穿透的解决方案：redis 中缓存空对象
-            // 注意：redis 是懒创建的，只有存在具体键值对，才会创建 hash，传入空 map 不会创建该键值对
-            // 解决方案：设置一个 _placeholder 字段，表示一个空的 hashmap 即可
-            redisTemplate.opsForHash().put(cacheKey, NULL_PLACEHOLDER, "true");
-        } else {
-            // 重建缓存的过程
-            Map<String, String> shopMap = HelperUtil.beanToStringMap(cacheKey, shop);
-            redisTemplate.opsForHash().putAll(cacheKey, shopMap);
-        }
-        redisTemplate.expire(cacheKey, shop == null ? CACHE_NULL_TTL : CACHE_SHOP_TTL, TimeUnit.MINUTES); // 有效时长：30min
     }
 
     @Override
@@ -112,7 +82,8 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
     /**
      * 更新策略：先更新数据库，再删除缓存，以保证线程安全。此外，该操作应该是原子的
-     * */
+     * @bug 可能由于逻辑删除带来一些问题；如果对一致性要求不高，则完全无需删除缓存。
+     */
     @Override
     @Transactional // 直接加上这个事务即可
     public Result updateShop(Shop shop) {
@@ -122,6 +93,4 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         redisTemplate.delete(cacheKey); // 删除缓存
         return Result.ok();
     }
-
-
 }
