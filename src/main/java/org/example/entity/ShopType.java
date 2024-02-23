@@ -3,12 +3,12 @@ package org.example.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
+import org.example.utils.GsonIgnore;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
@@ -55,13 +55,13 @@ public class ShopType implements Serializable {
     /**
      * 创建时间
      */
-    @JsonIgnore
+    @GsonIgnore
     private LocalDateTime createTime;
 
     /**
      * 更新时间
      */
-    @JsonIgnore
+    @GsonIgnore
     private LocalDateTime updateTime;
 
 

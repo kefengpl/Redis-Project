@@ -23,6 +23,6 @@ public class ShopTypeController {
 
     @GetMapping("list")
     public Result shopTypeList() {
-        return Result.ok(shopTypeService.queryShopTypeList());
+        return shopTypeService.queryShopTypeList();
     }
 }

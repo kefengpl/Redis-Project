@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.example.mapper.ShopMapper">
+    <!-- 事实证明，如果select 的属性比 javabean 多，那么也是可以注入的。多出的属性忽略即可 -->
+    <select id="queryClosestShops" resultType="shop">
+        select *, ST_Distance_Sphere(point(x, y), point(${x}, ${y})) as distance from tb_shop
+        where type_id = #{type} order by distance
+    </select>
+</mapper>
