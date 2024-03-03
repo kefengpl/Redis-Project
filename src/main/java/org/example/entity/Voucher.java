@@ -13,6 +13,8 @@ import lombok.experimental.Accessors;
 
 /**
  * @TableName tb_voucher
+ * 提示：普通券没有库存，秒杀券才有库存。普通券和秒杀券都存在于该表
+ * 只有秒杀券存在于 tb_seckill_voucher, 有库存信息，秒杀开始和结束的时间等
  */
 @Data
 @EqualsAndHashCode(callSuper = false)
@@ -59,7 +61,7 @@ public class Voucher implements Serializable {
     private Long actualValue;
 
     /**
-     * 优惠券类型
+     * 优惠券类型。 0 是普通券，1 是秒杀券
      */
     private Integer type;
 

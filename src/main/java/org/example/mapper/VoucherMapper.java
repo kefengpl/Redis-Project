@@ -8,4 +8,5 @@ import java.util.List;
 
 
 public interface VoucherMapper extends BaseMapper<Voucher> {
+    List<Voucher> queryAllTypeofVouchers(Long shopId);
 }

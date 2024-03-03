@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.example.mapper.VoucherMapper">
-
+<!-- 它根据 id 链接查询了 优惠券表 和 秒杀信息表 -->
+    <select id="queryAllTypeofVouchers" resultType="voucher">
+        select id, shop_id, title, sub_title, rules, pay_value, actual_value, type, stock, begin_time, end_time
+        from tb_voucher v left join tb_seckill_voucher sv on v.id = sv.voucher_id
+        where v.shop_id = #{shopId} and v.status = 1;
+    </select>
 </mapper>

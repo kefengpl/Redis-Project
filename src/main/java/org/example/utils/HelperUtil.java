@@ -24,8 +24,8 @@ import java.util.Map;
 public class HelperUtil {
     private static final double CAPITAL_ENLARGE_FACTOR = 1.5;
     private static final Gson gson = new GsonBuilder()
-            .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeAdapter())
-            .setExclusionStrategies(new MyGsonStrategy()).create();
+            .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeAdapter()) // 手动写 LocalDateTime 的序列化和反序列化逻辑
+            .setExclusionStrategies(new MyGsonStrategy()).create(); // 忽略某些字段
 
     private static class MyGsonStrategy implements ExclusionStrategy{
         @Override
@@ -49,8 +49,16 @@ public class HelperUtil {
         return betweenTime > aliveTime;
     }
 
+
+    /**
+     * 判断当前时间是否在 开始时间 和 结束时间 之间
+     */
+    public static boolean timeInRange(LocalDateTime beginTime, LocalDateTime endTime) {
+        return beginTime.isBefore(LocalDateTime.now()) && endTime.isAfter(LocalDateTime.now());
+    }
+
     /***
-     * 将 shop 封装，添加 expire 字段，值是当前时刻
+     * 将实体类封装，添加 expire 字段，值是当前时刻
      * @param data 待包装的数据
      * @return RedisShopData，包装后的类型；如果 data == null，就 return null
      * @param <T> 数据的类型
@@ -63,6 +71,12 @@ public class HelperUtil {
         return redisWrapperData;
     }
 
+    /***
+     * bean 转为 json，调用定制化的 gson 对象，自动忽略 @GsonIgnore 字段，可以序列化 LocalDateTime
+     * @param bean
+     * @return
+     * @param <T>
+     */
     public static <T> String beanToJson(T bean) {
         return gson.toJson(bean); // 序列化时忽略加上 @GsonIgnore 的字段
     }
@@ -74,6 +88,9 @@ public class HelperUtil {
     /**
      * 给集合类进行 bean 和 json(String) 之间的转换
      * @param <E> javaBean 的类型
+     * @param collection 集合类，类型是 Collection<String>
+     * @param clazz bean 的类型对象
+     * @return Collection<E>，即返回集合类，它的元素从 序列化的 string 转为了 bean
      */
     public static <E> Collection<E> collectionElemToBean(Collection<String> collection, Class<E> clazz)  {
         Class<? extends Collection> collectionClass = collection.getClass(); // collection<Object>
@@ -95,6 +112,8 @@ public class HelperUtil {
     /**
      * 给集合类进行 bean 和 json(String) 之间的转换
      * @param <E> javaBean 的类型
+     * @param collection 集合类，类型是 Collection<E>
+     * @return Collection<String>，同时会保留 Collection 的具体实现类
      */
     public static <E> Collection<String> collectionElemToJson(Collection<E> collection) {
         Class<? extends Collection> collectionClass = collection.getClass(); // collection<Object>

@@ -51,9 +51,9 @@ public class RedisCacheUtil {
     }
 
     /***
+     * 将数据库查询的结果(带有逻辑过期字段)，添加到 cache 中
      * @param redisWrapperData 带有逻辑过期字段(wrapper)的数据
      * @param cacheKey 缓存 key 的名称
-     * 将数据库查询的结果(带有逻辑过期字段)，添加到 cache 中
      */
     public <T> void addWrapperDataToCache(RedisWrapperData<T> redisWrapperData, String cacheKey) {
         if (redisWrapperData == null) {
@@ -61,7 +61,8 @@ public class RedisCacheUtil {
             // 注意：redis 是懒创建的，只有存在具体键值对，才会创建 hash，传入空 map 不会创建该键值对
             // 解决方案：设置一个 _placeholder 字段，表示一个空的 hashmap 即可
             redisTemplate.opsForValue().set(cacheKey, NULL_PLACEHOLDER);
-            redisTemplate.expire(cacheKey, CACHE_NULL_TTL, TimeUnit.MINUTES); // 提示：为了解决缓存穿透，依然需要给 null 设置空
+            redisTemplate.expire(cacheKey, CACHE_NULL_TTL, TimeUnit.MINUTES); // 提示：为了解决缓存穿透，依然需要给 null 设置空，且空字段会过期
+            // 空字段会真实过期(CACHE_NULL_TTL, 5分钟后过期)，有逻辑过期字段，但不会被处理，让他自生自灭即可。所以空键值对会多次缓存不命中从而重建缓存
         } else {
             // 重建缓存的过程，存储为 JSON 格式
             redisTemplate.opsForValue().set(cacheKey, HelperUtil.beanToJson(redisWrapperData));
@@ -79,6 +80,7 @@ public class RedisCacheUtil {
         String jsonData = redisTemplate.opsForValue().get(cacheKey);
 
         // 缓存命中，但也有可能是空值(_placeholder == true)。如果是空，则需要返回 “店铺不存在”。
+        // 此处对缓存命中空键值对的情况进行了拦截，也就是说，空键值对根本不会走到取数据  RedisWrapperData<R> wrapperData = 这一步
         if (!StringUtil.isNullOrEmpty(jsonData)) {
             // 空记录的情况
             if (jsonData.equals(NULL_PLACEHOLDER)) {

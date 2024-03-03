@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
+import org.example.utils.HelperUtil;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
@@ -14,9 +15,6 @@ import java.time.LocalDateTime;
  * <p>
  * 秒杀优惠券表，与优惠券是一对一关系
  * </p>
- *
- * @author 虎哥
- * @since 2022-01-04
  */
 @Data
 @EqualsAndHashCode(callSuper = false)
@@ -43,12 +41,12 @@ public class SeckillVoucher implements Serializable {
     private LocalDateTime createTime;
 
     /**
-     * 生效时间
+     * 生效时间：开始秒杀时间
      */
     private LocalDateTime beginTime;
 
     /**
-     * 失效时间
+     * 失效时间：结束秒杀时间
      */
     private LocalDateTime endTime;
 
@@ -56,6 +54,13 @@ public class SeckillVoucher implements Serializable {
      * 更新时间
      */
     private LocalDateTime updateTime;
+
+    /**
+     * 判断某个秒杀券是否正在秒杀
+     */
+    public boolean isSeckilling() {
+        return HelperUtil.timeInRange(beginTime, endTime);
+    }
 
 
 }
