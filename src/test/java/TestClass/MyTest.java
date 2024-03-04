@@ -1,5 +1,6 @@
 package TestClass;
 
+import cn.hutool.core.lang.UUID;
 import org.example.Main;
 import org.example.entity.Shop;
 import org.example.mapper.ShopMapper;
@@ -57,5 +58,10 @@ public class MyTest {
         LocalDateTime time2 = LocalDateTime.of(2024, 4, 2, 15, 20, 35);
         boolean b = time1.compareTo(LocalDateTime.now()) <= 0 && time2.compareTo(LocalDateTime.now()) >= 0;
         System.out.println(b);
+    }
+
+    @Test
+    public void test4() {
+        UUID.randomUUID().toString(true);
     }
 }

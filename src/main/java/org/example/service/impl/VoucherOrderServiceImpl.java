@@ -11,10 +11,12 @@ import org.example.mapper.SeckillVoucherMapper;
 import org.example.mapper.VoucherOrderMapper;
 import org.example.service.IVoucherOrderService;
 import org.example.utils.RedisIdWorker;
+import org.example.utils.SimpleRedisLock;
 import org.example.utils.UserHolder;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.aop.framework.AopProxy;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,6 +50,10 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     SeckillVoucherMapper seckillVoucherMapper;
     @Autowired
     RedisIdWorker redisIdWorker;
+    @Autowired
+    StringRedisTemplate redisTemplate;
+    SimpleRedisLock redisLock = null;
+
     @Override
     public Result seckillVoucher(Long voucherId) {
         // 查询 id
@@ -64,10 +70,12 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         UserDTO user = UserHolder.getUser();
         Long userId = user.getId();
         Long orderId = null;
-        // 实现一人一单功能，如果 order 表中查询到了该用户的记录，就返回false
-        // 显然，这种做法依然会带来线程安全问题，如果5个线程依次先执行了下面的语句，都判断为false，那么一个用户还是能够同时下5单。
-        // 使用悲观锁即可，注意：我们需要总是监控同一个 user, 即同一个 user 阻塞，其它 user 不阻塞. 所以需要使得 对于 同一个 uid，监控的对象一致
-        synchronized (userId.toString().intern()) { // .intern() 表示当字符串常量池有相同对象的时候，就直接返回相同对象.
+
+        redisLock = new SimpleRedisLock(redisTemplate, "order:" + userId);
+        if (!redisLock.tryLock(1000)) {
+            return Result.fail("您已经下过单了，或者您正在下单");
+        }
+        try {
             // 只有下面这三行代码，还是无法解决一人一单问题。因为第一个人判断通过后，尚未写入数据库，第二个人就进来了。
             if (hasMadeOrder(userId, voucherId)) {
                 return Result.fail("您已经下过单了");
@@ -78,7 +86,10 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             IVoucherOrderService proxyObject = (IVoucherOrderService) AopContext.currentProxy();// 获取当前类的代理对象
             // 扣减库存，生成订单
             orderId = proxyObject.makeOrder(seckillVoucher, userId); // 这就是添加了事务的 makeOrder，此时，该函数执行完毕必然保证数据库写入且提交
+        } finally {
+            redisLock.unlock(); // 释放锁
         }
+
         if (orderId == null) {
             return Result.fail("库存已清空");
         }
