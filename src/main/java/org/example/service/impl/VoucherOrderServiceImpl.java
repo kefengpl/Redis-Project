@@ -13,6 +13,8 @@ import org.example.service.IVoucherOrderService;
 import org.example.utils.RedisIdWorker;
 import org.example.utils.SimpleRedisLock;
 import org.example.utils.UserHolder;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.aop.framework.AopProxy;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,8 +53,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     @Autowired
     RedisIdWorker redisIdWorker;
     @Autowired
-    StringRedisTemplate redisTemplate;
-    SimpleRedisLock redisLock = null;
+    RedissonClient redissonClient; // 利用第三方提供的分布式锁 API
 
     @Override
     public Result seckillVoucher(Long voucherId) {
@@ -71,8 +72,12 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         Long userId = user.getId();
         Long orderId = null;
 
-        redisLock = new SimpleRedisLock(redisTemplate, "order:" + userId);
+        /*redisLock = new SimpleRedisLock(redisTemplate, "order:" + userId);
         if (!redisLock.tryLock(1000)) {
+            return Result.fail("您已经下过单了，或者您正在下单");
+        }*/
+        RLock lock = redissonClient.getLock("lock:order" + userId);
+        if (!lock.tryLock()) { // 空参表示默认不等待
             return Result.fail("您已经下过单了，或者您正在下单");
         }
         try {
@@ -87,7 +92,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             // 扣减库存，生成订单
             orderId = proxyObject.makeOrder(seckillVoucher, userId); // 这就是添加了事务的 makeOrder，此时，该函数执行完毕必然保证数据库写入且提交
         } finally {
-            redisLock.unlock(); // 释放锁
+            lock.unlock(); // 释放锁
         }
 
         if (orderId == null) {
