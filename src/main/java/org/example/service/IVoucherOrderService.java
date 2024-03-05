@@ -12,5 +12,9 @@ import org.example.entity.VoucherOrder;
  */
 public interface IVoucherOrderService extends IService<VoucherOrder> {
     Result seckillVoucher(Long voucherId);
+
+    Result redisSeckillVoucher(Long voucherId);
+
     Long makeOrder(SeckillVoucher seckillVoucher, Long userId);
+    Long makeOrder(VoucherOrder voucherOrder);
 }

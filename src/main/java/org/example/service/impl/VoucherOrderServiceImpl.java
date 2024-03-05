@@ -11,21 +11,23 @@ import org.example.mapper.SeckillVoucherMapper;
 import org.example.mapper.VoucherOrderMapper;
 import org.example.service.IVoucherOrderService;
 import org.example.utils.RedisIdWorker;
-import org.example.utils.SimpleRedisLock;
 import org.example.utils.UserHolder;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.aop.framework.AopContext;
-import org.springframework.aop.framework.AopProxy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-import static org.example.utils.RedisConstants.SECKILL_STOCK_KEY;
+import static org.example.utils.RedisConstants.*;
 
 /**
  * @Description
@@ -54,8 +56,32 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     RedisIdWorker redisIdWorker;
     @Autowired
     RedissonClient redissonClient; // 利用第三方提供的分布式锁 API
+    @Autowired
+    StringRedisTemplate redisTemplate;
+    // 它可以为所有线程共用。因为这是 Service 类本身是单例。
+    private final BlockingQueue<VoucherOrder> orderTasks = new ArrayBlockingQueue<>(1024 * 1024);
+    // 创建线程池，同样，由于 spring 默认是单例模式，所以它会被所有请求和线程共享
+    private static final ExecutorService ORDER_EXECUTORS = Executors.newFixedThreadPool(1);
+    IVoucherOrderService proxyObject = null;// 获取当前类的代理对象
+    // 利用阻塞队列，所以通过队列获取订单信息即可。只开一个线程，处理所有生成订单的请求
+    Runnable runnable = () -> {
+        while (true) {
+            try {
+                // 尝试从阻塞队列获取订单信息
+                VoucherOrder voucherOrder = orderTasks.take();
+                proxyObject.makeOrder(voucherOrder); // 根据 voucherOrder 生成订单
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    };
+
+    {
+        ORDER_EXECUTORS.execute(runnable); // 一开始就启动这个线程，或者使用 @PostConstruct
+    }
 
     @Override
+    @Deprecated
     public Result seckillVoucher(Long voucherId) {
         // 查询 id
         SeckillVoucher seckillVoucher = seckillVoucherMapper.selectById(voucherId);
@@ -101,6 +127,39 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         return Result.ok(orderId);
     }
 
+    /**
+     * 实现 redis 版本的优惠券秒杀
+     */
+    @Override
+    public Result redisSeckillVoucher(Long voucherId) {
+        // 1. 执行 lua 脚本(note: 秒杀券必定在 redis 数据库中了)：传入参数，执行脚本
+        List<String> redisKeys = new LinkedList<>();
+        redisKeys.add(SECKILL_STOCK_KEY + voucherId);
+        redisKeys.add(SECKILL_ORDER_KEY + voucherId);
+        Long userId = UserHolder.getUser().getId();
+        Long execute = redisTemplate.execute(VOUCHER_SECKILL_SCRIPT, redisKeys, String.valueOf(userId));
+        if (execute == null) {
+            return Result.fail("服务器异常，无法进行秒杀");
+        }
+        if (execute != 0) {
+            return execute.equals(2L) ? Result.fail("您已经下过单了") :
+                    Result.fail("秒杀券库存不足");
+        }
+        // 其它情况：需要进行下单了！则把用户 id，order id，优惠券 id 存入阻塞队列
+        long orderId = redisIdWorker.nextId(SECKILL_STOCK_KEY);
+        VoucherOrder voucherOrder = new VoucherOrder();
+        voucherOrder.setId(orderId);
+        voucherOrder.setVoucherId(voucherId);
+        voucherOrder.setUserId(userId);
+        if (proxyObject == null) {
+            proxyObject = (IVoucherOrderService) AopContext.currentProxy();
+            System.out.println("代理对象创建成功");
+        }
+        // 将订单存入阻塞队列，让它异步更新
+        orderTasks.add(voucherOrder);
+        return Result.ok(orderId);
+    }
+
     /***
      * 检查一个用户是否已经在这种秒杀优惠券上下过单了
      * @param userId 用户 id
@@ -118,7 +177,6 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
      * @param userId 用户 id
      * @return 生成的订单 id。如果库存减1失败，则删除。
      */
-    @Transactional // 只有更新数据库需要事务，其它不需要
     public Long makeOrder(SeckillVoucher seckillVoucher, Long userId) {
         // 1. 更新库存表，库存 = 库存 - 1
         LambdaUpdateWrapper<SeckillVoucher> updateWrapper = new LambdaUpdateWrapper<>();
@@ -133,6 +191,23 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         voucherOrder.setId(redisIdWorker.nextId(SECKILL_STOCK_KEY));
         voucherOrder.setVoucherId(seckillVoucher.getVoucherId());
         voucherOrder.setUserId(userId);
+        voucherOrderMapper.insert(voucherOrder);
+        return voucherOrder.getId();
+    }
+
+    /**
+     * 生成订单，减少库存。
+     */
+    @Transactional // 只有更新数据库需要事务，其它不需要
+    public Long makeOrder(VoucherOrder voucherOrder) {
+        // 1. 更新库存表，库存 = 库存 - 1
+        LambdaUpdateWrapper<SeckillVoucher> updateWrapper = new LambdaUpdateWrapper<>();
+        // 乐观锁，更新时判断 stock > 0，比 stock = #{stock} 还要乐观
+        updateWrapper.eq(SeckillVoucher::getVoucherId, voucherOrder.getVoucherId()).gt(SeckillVoucher::getStock, 0);
+        updateWrapper.setSql("stock = stock - 1");
+        int update = seckillVoucherMapper.update(null, updateWrapper);
+        if (update == 0) return null; // 去库存失败，返回 null.
+        // 2. 更新订单表，插入一条新订单记录
         voucherOrderMapper.insert(voucherOrder);
         return voucherOrder.getId();
     }

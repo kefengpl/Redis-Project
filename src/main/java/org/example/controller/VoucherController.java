@@ -1,6 +1,7 @@
 package org.example.controller;
 
 import org.example.dto.Result;
+import org.example.entity.SeckillVoucher;
 import org.example.entity.Voucher;
 import org.example.service.IVoucherService;
 import org.springframework.beans.factory.annotation.Autowired;
