@@ -72,6 +72,12 @@ public class Blog implements Serializable {
     private Integer liked;
 
     /**
+     * 添加是否已经被当前用户点赞
+     */
+    @TableField(exist = false)
+    private Boolean isLike;
+
+    /**
      * 评论数量
      */
     private Integer comments;

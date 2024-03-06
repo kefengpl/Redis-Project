@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.example.mapper.BlogMapper">
+    <select id="queryBlogDetail" resultType="blog">
+        select *, t.icon, t.nick_name name
+        from tb_blog left join tb_user t on tb_blog.user_id = t.id
+        where tb_blog.id = #{id}
+    </select>
+</mapper>

@@ -1,6 +1,8 @@
 package org.example.controller;
 
+import cn.hutool.core.bean.BeanUtil;
 import org.example.dto.Result;
+import org.example.dto.UserDTO;
 import org.example.service.IUserInfoService;
 import org.example.service.IUserService;
 import org.example.utils.UserHolder;
@@ -58,5 +60,34 @@ public class UserController {
     @PostMapping("logout")
     public Result logout() {
         return Result.ok(null);
+    }
+
+    /**
+     * 获取用户基本信息
+     */
+    @GetMapping("info/{userId}")
+    public Result userInfo(@PathVariable Long userId) {
+        return userInfoService.getUserInfo(userId);
+    }
+
+    /**
+     * 根据id查询用户信息
+     */
+    @GetMapping("{id}")
+    public Result getUserDTO(@PathVariable Long id) {
+        return Result.ok(BeanUtil.copyProperties(userService.getById(id), UserDTO.class));
+    }
+
+    /**
+     * 实现用户签到
+     */
+    @PostMapping("sign")
+    public Result userSign() {
+        return userService.sign();
+    }
+
+    @GetMapping("sign")
+    public Result userSignCount() {
+        return userService.signCount();
     }
 }

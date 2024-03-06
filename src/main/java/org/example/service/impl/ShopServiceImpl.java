@@ -1,8 +1,10 @@
 package org.example.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import io.netty.util.internal.StringUtil;
 import org.example.dto.Result;
 import org.example.entity.Shop;
 import org.example.mapper.ShopMapper;
@@ -62,7 +64,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
                 return cacheHitResult; // 缓存命中，这也会运行 finally 代码块
             }
 
-            // 将数据添加到数据库
+            // 将数据添加到数据库。先写数据库，再写缓存
             RedisWrapperData<Shop> wrapperData = HelperUtil.dataWrapper(shopMapper.selectById(id));
             redisCacheUtil.addWrapperDataToCache(wrapperData, cacheKey);
             // 注意：执行顺序：①计算 return的值；②执行 finally 代码块 ③ 返回值
@@ -92,5 +94,14 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         String cacheKey = CACHE_SHOP_KEY + shop.getId();
         redisTemplate.delete(cacheKey); // 删除缓存
         return Result.ok();
+    }
+
+    @Override
+    public Result queryShopName(String name, Integer current) {
+        IPage<Shop> page = new Page<>(current, DEFAULT_PAGE_SIZE);
+        LambdaQueryWrapper<Shop> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(!StringUtil.isNullOrEmpty(name), Shop::getName, name);
+        shopMapper.selectPage(page, queryWrapper);
+        return Result.ok(page.getRecords());
     }
 }

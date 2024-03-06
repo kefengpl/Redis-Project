@@ -44,6 +44,15 @@ public class ShopController {
         return shopService.updateShop(shop);
     }
 
+    /**
+     * 根据名称分页查询商铺信息
+     */
+    @GetMapping("/of/name")
+    public Result queryShopName(@RequestParam(value = "name", required = false) String name,
+                                @RequestParam(value = "current", defaultValue = "1") Integer current) {
+        return shopService.queryShopName(name, current);
+    }
+
     @GetMapping("test")
     public Result test(Long id) {
         Shop shop = shopMapper.selectById(id);
