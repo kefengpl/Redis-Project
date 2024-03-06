@@ -20,6 +20,7 @@ public class RedisConstants {
 
     public static final String SECKILL_STOCK_KEY = "seckill:stock:";
     public static final String SECKILL_ORDER_KEY = "seckill:order:";
+    public static final String STREAM_QUEUE_NAME = "stream.orders";
     // redis 优惠券秒杀 lua 脚本对象
     public static final DefaultRedisScript<Long> VOUCHER_SECKILL_SCRIPT;
 

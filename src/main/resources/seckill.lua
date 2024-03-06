@@ -16,5 +16,8 @@ end
 -- 下面的情况就是既没有下过单，也由剩余库存，所以需要扣减库存，生成下单记录(orderKey --> userId)
 redis.call('decr', stockKey) -- 扣减剩余库存
 redis.call('sadd', orderKey, userId) -- 生成一个下单记录
-                                       -- 生成订单
+local voucherId = ARGV[2]            -- 生成订单
+local orderId = ARGV[3]
+-- 将这个信息加入Stream的消息队列
+redis.call('xadd', 'stream.orders', '*', 'voucherId', voucherId, 'userId', userId, 'id', orderId)
 return 0

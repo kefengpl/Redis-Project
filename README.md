@@ -395,3 +395,6 @@ return 0
 **基于redis的stream结构作为消息队列，实现异步秒杀**
 ![img_4.png](img_4.png)
 - 创建 Stream 消息队列直接使用 stream.orders 即可。命令：xgroup create stream.orders g1 0 MKSTREAM
+- 注意代码中消息队列使用的复杂逻辑
+- 压力测试：如果每个下单都能成功写入数据库，那么TOMCAT的并发请求数量可能成为瓶颈，导致部分请求直接被拒绝连接。受限于本机性能，1s内大约发出1250个优惠券
+秒杀请求是没有问题的。
